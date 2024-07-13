@@ -6,40 +6,42 @@ local worldConstants = mod.libs.worldConstants
 
 lmn_ds_PulseRifle = Skill:new{
 	Name = "Pulse Rifle",
-	Description = "Teleport, and fire a damaging and pushing projectile back in the direction you came from.",
+	Description = "Teleport, and fire a damaging projectile back in the direction you came from. Deals more damage if not firing from smoke or water.",
 	Icon = "weapons/ds_pulse_rifle.png",
 	Class = "Prime",
 	PowerCost = 1,
 	Range = INT_MAX,
-	Damage = 1,
+	BaseDamage = 1,
 	LeaveSmoke = false,
 	CanFireFromSmoke = true,
 	CanFireFromWater = true,
+	Push = 0,
+	Fire = 0,
 	Upgrades = 2,
-	UpgradeList = { "Leave Smoke", "+2 Damage" },
-	UpgradeCost = { 1, 3 },
+	UpgradeList = { "Push", "Fire" },
+	UpgradeCost = { 1, 2 },
 	TipImage = {
-		Unit = Point(2,3),
-		Mountain = Point(2,2),
-		Target = Point(2,0),
-		Enemy1 = Point(2,1)
+		Unit = Point(2,4),
+		Mountain = Point(2,3),
+		Target = Point(2,1),
+		Enemy1 = Point(2,2)
 	}
 }
 
 
 lmn_ds_PulseRifle_A = lmn_ds_PulseRifle:new{
-	UpgradeDescription = "Create Smoke and extinguish Fire at origin before teleporting.",
-	LeaveSmoke = true
+	UpgradeDescription = "Pushes target away from you.",
+	Push = 1,
 }
 
 lmn_ds_PulseRifle_B = lmn_ds_PulseRifle:new{
-	UpgradeDescription = "Increases damage by 2.",
-	Damage = 3
+	UpgradeDescription = "Add fire",
+	Fire = 1
 }
 
 lmn_ds_PulseRifle_AB = lmn_ds_PulseRifle:new{
-	LeaveSmoke = true,
-	Damage = 3
+	Push = 1,
+	Fire = 1
 }
 
 function lmn_ds_PulseRifle:GetTargetArea(point)
@@ -71,6 +73,7 @@ function lmn_ds_PulseRifle:GetSkillEffect(p1, p2)
 	local ret = lmn_ds_Teleport.GetSkillEffect(self, p1, p2, lmn_ds_Teleport)
 	local dir = GetDirection(p1 - p2)
 	local target = p1
+	local final_damage = self.BaseDamage
 
 	for k = 1, self.Range do
 		local curr = p2 + DIR_VECTORS[dir] * k
@@ -86,7 +89,26 @@ function lmn_ds_PulseRifle:GetSkillEffect(p1, p2)
 		end
 	end
 
-	local projectile = SpaceDamage(target, self.Damage, dir)
+	-- +1 Damage if not in smoke and water
+	if 
+		Board:GetTerrain(p2) ~= TERRAIN_WATER and 
+		not Board:IsSmoke(p2) 
+	then
+		final_damage = self.BaseDamage + 1
+	end
+
+	local projectile = SpaceDamage(target, final_damage)
+
+	-- Push if upgraded
+	if self.Push == 1 then
+		projectile = SpaceDamage(target, final_damage, dir)
+	end
+
+	-- Fire if upgraded
+	if self.Fire == 1 then
+		projectile.iFire = 1
+	end
+
 	projectile.sSound = "/props/electric_smoke_damage"
 	projectile.sScript = string.format("Board:AddAnimation(%s, 'ds_explo_plasma', NO_DELAY)", target:GetString())
 

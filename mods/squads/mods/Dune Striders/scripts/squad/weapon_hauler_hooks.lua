@@ -47,14 +47,15 @@ lmn_ds_HaulerHooks = Skill:new{
 	Description = "Move in a line, and haul any units behind you along.",
 	Icon = "weapons/ds_hauler_hooks.png",
 	Class = "Science",
-	PowerCost = 2,
+	PowerCost = 1,
 	Range = INT_MAX,
 	Crash = false,
 	MoveSpeedAsRange = false,
 	MoveSpeedMinimum = nil,
 	RefreshMovement = false,
+	Damage = 0,
 	Upgrades = 1,
-	UpgradeList = { "Refresh Movement" },
+	UpgradeList = { "Damage Enemies" },
 	UpgradeCost = { 2 },
 	TipImage = {
 		Unit = Point(3,2),
@@ -67,8 +68,9 @@ lmn_ds_HaulerHooks = Skill:new{
 }
 
 lmn_ds_HaulerHooks_A = lmn_ds_HaulerHooks:new{
-	UpgradeDescription = "Refresh movement on hauled units, if they have not attacked yet.",
-	RefreshMovement = true
+	UpgradeDescription = "Deal 1 damage to enemies that have been hauled.",
+	-- RefreshMovement = true
+	Damage = 1
 }
 
 local function canRefreshMovement(pawn)
@@ -175,6 +177,11 @@ function lmn_ds_HaulerHooks:GetSkillEffect(p1, p2)
 			worldConstants:setSpeed(ret, velocity)
 			ret:AddCharge(Board:GetPath(draggedPawn.from, draggedPawn.to, PATH_FLYER), NO_DELAY)
 			worldConstants:resetSpeed(ret)
+
+			if self.Damage and draggedPawn.team == TEAM_ENEMY then
+				local enemyDamage = SpaceDamage(draggedPawn.to, self.Damage)
+				ret:AddDamage(enemyDamage)
+			end
 
 			dests[draggedPawn.distance] = draggedPawn
 		end

@@ -1,4 +1,5 @@
 
+
 local mod = modApi:getCurrentMod()
 local utils = require(mod.scriptPath .."libs/utils")
 local effectBurst = mod.libs.effectBurst
@@ -28,12 +29,13 @@ lmn_ds_DualPistols = Skill:new{
 	Range = INT_MAX,
 	Targets = 1,
 	SpreadSmoke = false,
-	AdvTargeting = true,
-	MoveSpeedAsRange = true,
+	AdvTargeting = true,  -- targeting starts from the furthest. Set to false for closest
+	PhasedMovement = false,
+	BaseMoveAsRange = true,
 	MoveSpeedMinimum = nil,
 	Upgrades = 2,
-	UpgradeList = { "Kick Up Dust", "+1 Attack" },
-	UpgradeCost = { 2, 3 },
+	UpgradeList = { "Phased Movement", "+1 Attack" },
+	UpgradeCost = { 1, 3 },
 	CustomTipImage = "lmn_ds_DualPistols_Tip",
 	TipImage = {
 		Unit = Point(2,3),
@@ -46,8 +48,8 @@ lmn_ds_DualPistols = Skill:new{
 }
 
 lmn_ds_DualPistols_A = lmn_ds_DualPistols:new{
-	UpgradeDescription = "Create Smoke where you started. Passing through Smoke removes it, and spreads it to adjacent tiles.",
-	SpreadSmoke = true,
+	UpgradeDescription = "Allows breaking from webs. Phases when moving to destination.",
+	PhasedMovement = true,
 	CustomTipImage = "lmn_ds_DualPistols_Tip_A",
 	TipImage = {
 		Unit = Point(2,3),
@@ -57,7 +59,8 @@ lmn_ds_DualPistols_A = lmn_ds_DualPistols:new{
 		Enemy2 = Point(3,1),
 		Friendly1 = Point(3,2),
 		--Sand1 = Point(2,1),
-		Smoke1 = Point(2,2)
+		Mountain = Point(2,2),
+		Building = Point(2,1)
 	}
 }
 
@@ -68,16 +71,29 @@ lmn_ds_DualPistols_B = lmn_ds_DualPistols:new{
 }
 
 lmn_ds_DualPistols_AB = lmn_ds_DualPistols_A:new{
+	PhasedMovement = true,
 	CustomTipImage = "lmn_ds_DualPistols_Tip_AB",
 	Targets = 2,
+	TipImage = {
+	Unit = Point(2,3),
+	Target = Point(2,0),
+	Rock1 = Point(1,1),
+	Enemy1 = Point(1,2),
+	Enemy2 = Point(3,1),
+	Friendly1 = Point(3,2),
+	--Sand1 = Point(2,1),
+	Mountain = Point(2,2),
+	Building = Point(2,1)
+}
 }
 
 function lmn_ds_DualPistols:GetTargetArea(point)
 	local ret = PointList()
-	local range = self.MoveSpeedAsRange and Pawn:GetMoveSpeed() or self.Range
+	local range = self.BaseMoveAsRange and Pawn:GetBaseMove() or self.Range
+	local path_profile = self.PhasedMovement and PATH_FLYER or Pawn:GetPathProf()
 
-	if self.MoveSpeedMinimum and range == 0 then
-		range = self.MoveSpeedMinimum
+	if Pawn:IsGrappled() and not self.PhasedMovement then
+		return ret
 	end
 
 	for dir = DIR_START, DIR_END do
@@ -88,14 +104,17 @@ function lmn_ds_DualPistols:GetTargetArea(point)
 				break
 			end
 
-			if not Board:IsBlocked(curr, Pawn:GetPathProf()) then
-				if not Board:IsItem(curr) then
-					ret:push_back(curr)
-				end
+			if not Board:IsBlocked(curr, path_profile) then
+				-- if not Board:IsItem(curr) then  -- isItem check for things like mines I guess
+				-- 	ret:push_back(curr)
+				-- end
+				ret:push_back(curr)
 			end
 
-			if not utils.IsTilePassable(curr, Pawn:GetPathProf()) then
-				break
+			if not self.PhasedMovement then
+				if  not utils.IsTilePassable(curr, path_profile) then
+					break
+				end
 			end
 		end
 	end
@@ -115,6 +134,7 @@ function lmn_ds_DualPistols:GetSkillEffect(p1, p2)
 	local vec_left = DIR_VECTORS[dir_left]
 	local targets = 0
 	local events = {}
+	local path_profile = self.PhasedMovement and PATH_FLYER or Pawn:GetPathProf()
 
 	local sand = SpaceDamage()
 	local smoke_create = SpaceDamage()
@@ -157,7 +177,7 @@ function lmn_ds_DualPistols:GetSkillEffect(p1, p2)
 	ret:AddSound("/mech/prime/punch_mech/move")
 	ret:AddDelay(0.2)
 	ret:AddSound("/enemy/shared/moved")
-	ret:AddCharge(Board:GetPath(p1, p2, Pawn:GetPathProf()), NO_DELAY)
+	ret:AddCharge(Board:GetPath(p1, p2, path_profile), NO_DELAY)
 
 	for k = 0, distance do
 		local curr = p1 + vec_forward * k
